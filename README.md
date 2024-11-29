@@ -1,0 +1,114 @@
+# Mounting-EFS-with-EC2
+
+Step-by-Step Documentation: Mounting EFS and Displaying Updates on Multiple Web Servers
+1. Create an EFS File System in AWS
+Objective: You first need to create an EFS file system to share data between multiple EC2 instances.
+Steps:
+
+In the AWS Management Console, navigate to EFS (Elastic File System) under Services.
+Click Create File System.
+Configure the file system as follows:
+Select your VPC and choose subnets for your mount targets (make sure these subnets are accessible from your EC2 instances).
+Configure the security group to allow inbound traffic on port 2049 (NFS).
+Select any additional settings as needed (e.g., performance mode, encryption).
+Once created, you will get a File System ID (e.g., fs-12345678) and mount targets IP addresses (e.g., 10.0.1.87, 10.0.2.61).
+2. Mount EFS to EC2 Instances
+Objective: Mount the EFS to your EC2 instances so that both servers can share the same file system.
+Steps:
+
+Login to EC2 Instance 1 (web-server-1):
+Use EC2 Instance Connect or SSH to access the terminal of your first web server.
+Ensure the Mount Directory Exists:
+Create a directory to serve as the mount point:
+sudo mkdir -p /mnt/efs
+Install NFS Utilities:
+Install the required NFS utilities to enable mounting:
+sudo apt-get install -y nfs-common   # For Ubuntu/Debian-based systems
+sudo yum install -y nfs-utils        # For Amazon Linux/RHEL-based systems
+Mount the EFS:
+Use the mount target IP address of the EFS mount (e.g., 10.0.1.87 for web-server-1) to mount the EFS file system:
+sudo mount -t nfs4 -o nfsvers=4.1 10.0.1.87:/ /mnt/efs
+Verify the Mount:
+Confirm that the EFS is mounted:
+df -h
+You should see the EFS file system listed as /mnt/efs.
+Test Access:
+Create a test file in the EFS directory:
+sudo touch /mnt/efs/test-file
+ls /mnt/efs
+You should see the test-file inside the directory.
+Repeat the Same for EC2 Instance 2 (web-server-2):
+SSH into your second EC2 instance (web-server-2).
+Follow the same steps to mount the EFS using its respective mount target IP address (e.g., 10.0.2.61 for web-server-2).
+3. Persist the Mount Across Reboots
+Objective: Ensure the EFS mount is persistent across EC2 instance reboots.
+Steps:
+
+Edit /etc/fstab:
+Open the /etc/fstab file:
+sudo nano /etc/fstab
+Add the following entry to the file, replacing <EFS-MOUNT-TARGET-IP> with the correct mount target IP address:
+<EFS-MOUNT-TARGET-IP>:/ /mnt/efs nfs4 defaults,_netdev 0 0
+Example for web-server-1:
+10.0.1.87:/ /mnt/efs nfs4 defaults,_netdev 0 0
+Verify Persistence:
+Unmount and remount the EFS to check if it persists across reboots:
+sudo umount /mnt/efs
+sudo mount -a
+df -h
+The EFS should be remounted automatically.
+4. Update Content on EFS and Reflect Changes on Both Servers
+Objective: Ensure that any changes made to the content stored in the shared EFS directory are reflected on both web servers automatically.
+Steps:
+
+Login to Either Server and Make Updates:
+SSH into one of your web servers (web-server-1 or web-server-2).
+Navigate to the shared web directory (/mnt/efs/shared-web/) on the EFS mount.
+Edit or update the web page (e.g., index.html).
+Example:
+
+cd /mnt/efs/shared-web/
+sudo nano index.html
+Save and Verify Changes:
+Save the changes made to the file.
+You should now be able to access the updated page from both servers.
+Verify on Both Servers:
+On web-server-1:
+Open the web page on your browser (e.g., http://<web-server-1-ip>).
+On web-server-2:
+Open the web page on your browser (e.g., http://<web-server-2-ip>).
+Both should show the updated content because they are accessing the same file system.
+5. (Optional) Configure Web Server to Serve EFS Content
+Objective: Ensure the web server serves content from the EFS mount point.
+Steps:
+
+Nginx (or Apache) Configuration:
+For Nginx:
+Ensure that the Nginx root directive points to the EFS directory:
+server {
+    listen 80;
+    server_name localhost;
+
+    root /mnt/efs/shared-web;
+
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
+Reload Nginx:
+sudo systemctl reload nginx
+For Apache:
+Edit the Apache config to point to the EFS directory:
+DocumentRoot /mnt/efs/shared-web
+Restart Apache:
+sudo systemctl restart apache2
+6. Troubleshooting
+Mount Targets Not Available: Make sure the EFS mount targets exist in the subnets of the EC2 instances. If not, create them.
+Permission Issues: Ensure the EC2 instances have the necessary permissions to access EFS. The security group associated with EFS should allow inbound traffic on port 2049.
+Incorrect IP Address: Double-check that the correct EFS mount target IP is used in the mount command.
+Conclusion
+You’ve now successfully mounted EFS to multiple EC2 instances, ensured that changes to the shared content on EFS are reflected across both web servers, and made sure the mount persists across reboots. The EFS provides a simple and scalable solution for sharing data between multiple EC2 instances in your environment, and any updates to the shared web page are automatically reflected on all instances that have the EFS mounted.
+
+Feel free to reach out if you need further clarification or assistance!
